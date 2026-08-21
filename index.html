@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IT Ops · Ticket Console</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0E1420;
+    --bg-deep:#0B111C;
+    --bg-deep-2:#121B2B;
+    --paper:#F3F4F7;
+    --card:#FFFFFF;
+    --line:#E3E6EC;
+    --line-soft:#EDEFF3;
+    --muted:#68707E;
+    --muted-2:#8B93A1;
+    --accent:#2E5CFF;
+    --accent-ink:#1B3FCC;
+    --accent-soft:#EAF0FF;
+    --urgent:#E14E2C;
+    --urgent-soft:#FCE6DF;
+    --normal:#C98A0A;
+    --normal-soft:#FBEFD6;
+    --wait:#0F8A5F;
+    --wait-soft:#DFF3EA;
+    --sans:'Inter', -apple-system, 'Segoe UI', sans-serif;
+    --disp:'Space Grotesk', 'Inter', sans-serif;
+    --mono:'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); font-size:15px; line-height:1.5;
+    padding:0 0 70px; -webkit-font-smoothing:antialiased;
+  }
+
+  /* ===== HEADER ===== */
+  header{
+    background:linear-gradient(160deg, var(--bg-deep) 0%, var(--bg-deep-2) 100%);
+    color:#fff; padding:24px 18px 0; position:sticky; top:0; z-index:10;
+    border-bottom:1px solid rgba(255,255,255,.06);
+  }
+  .hd-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .brand{ display:flex; align-items:center; gap:9px; }
+  .brand-mark{
+    width:26px; height:26px; border-radius:7px;
+    background:linear-gradient(135deg, var(--accent), #7A9CFF);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:12px; font-weight:700; color:#fff;
+    box-shadow:0 0 0 1px rgba(255,255,255,.15) inset;
+  }
+  .brand-text .eyebrow{
+    font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase;
+    color:#8FA3C9; line-height:1;
+  }
+  .brand-text h1{ margin:2px 0 0; font-family:var(--disp); font-size:18px; font-weight:600; letter-spacing:-.01em; }
+  .live-dot{ display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; color:#8FA3C9; }
+  .live-dot i{
+    width:6px; height:6px; border-radius:50%; background:#3DDC8A; display:inline-block;
+    box-shadow:0 0 0 3px rgba(61,220,138,.18); animation:pulse 2.2s infinite;
+  }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.4;} }
+
+  .stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:rgba(255,255,255,.07);
+    border-radius:10px 10px 0 0; overflow:hidden; margin-top:2px;
+  }
+  .stat{ background:rgba(255,255,255,.02); padding:12px 10px 13px; }
+  .stat .n{ font-family:var(--disp); font-size:22px; font-weight:600; line-height:1; }
+  .stat .l{ font-size:10px; color:#8FA3C9; margin-top:5px; letter-spacing:.03em; text-transform:uppercase; font-family:var(--mono); }
+  .stat.urgent .n{ color:#FF8464; }
+  .stat.progress .n{ color:#F6C453; }
+  .stat.closed .n{ color:#5FE0A8; }
+
+  /* ===== LAYOUT ===== */
+  .wrap{ max-width:760px; margin:0 auto; padding:18px 16px 0; }
+
+  .tabs{ display:flex; gap:6px; margin-bottom:18px; background:var(--card); padding:4px; border-radius:11px; border:1px solid var(--line); }
+  .tab{
+    flex:1; text-align:center; padding:9px 6px; border-radius:8px;
+    font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; transition:.15s;
+    font-family:var(--sans);
+  }
+  .tab.active{ background:var(--ink); color:#fff; }
+
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:20px; margin-bottom:16px; box-shadow:0 1px 2px rgba(16,20,31,.03);
+  }
+  .card h2{
+    margin:0 0 16px; font-family:var(--mono); font-size:11px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--accent-ink); display:flex; align-items:center; gap:7px;
+  }
+  .card h2::before{ content:''; width:3px; height:12px; background:var(--accent); border-radius:2px; display:inline-block; }
+
+  label{ display:block; font-size:12.5px; font-weight:600; color:var(--muted); margin:14px 0 6px; }
+  label:first-of-type{ margin-top:0; }
+  input[type=text], textarea, select{
+    width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:9px;
+    background:#FBFBFC; font-family:var(--sans); font-size:14.5px; color:var(--ink);
+    transition:.12s;
+  }
+  textarea{ min-height:76px; resize:vertical; }
+  input:focus, textarea:focus, select:focus{ outline:none; border-color:var(--accent); background:#fff; box-shadow:0 0 0 3px var(--accent-soft); }
+  select{ appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2368707E'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; }
+
+  .seg{ display:flex; gap:7px; }
+  .seg button{
+    flex:1; padding:11px 4px; border-radius:9px; border:1.5px solid var(--line);
+    background:#FBFBFC; font-size:12.5px; font-weight:600; color:var(--muted); cursor:pointer; transition:.12s;
+    font-family:var(--sans);
+  }
+  .seg button.sel[data-p="gap"]{ background:var(--urgent-soft); color:var(--urgent); border-color:var(--urgent); }
+  .seg button.sel[data-p="binhthuong"]{ background:var(--normal-soft); color:var(--normal); border-color:var(--normal); }
+  .seg button.sel[data-p="cho"]{ background:var(--wait-soft); color:var(--wait); border-color:var(--wait); }
+
+  .primary{
+    width:100%; margin-top:18px; padding:13px; border:none; border-radius:10px;
+    background:var(--ink); color:#fff; font-weight:600; font-size:14.5px; cursor:pointer;
+    font-family:var(--sans); letter-spacing:-.01em; transition:.12s;
+  }
+  .primary:active{ transform:scale(.98); }
+  .ghost{
+    padding:9px 12px; border:1px solid var(--line); border-radius:9px; background:var(--card);
+    font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer; font-family:var(--sans);
+  }
+
+  /* ===== TICKET CARD ===== */
+  .ticket{
+    position:relative; border:1px solid var(--line); border-radius:13px; padding:15px 15px 15px 18px;
+    margin-bottom:11px; background:var(--card); overflow:hidden;
+  }
+  .ticket::before{
+    content:''; position:absolute; left:0; top:0; bottom:0; width:4px;
+  }
+  .ticket.p-gap::before{ background:var(--urgent); }
+  .ticket.p-binhthuong::before{ background:var(--normal); }
+  .ticket.p-cho::before{ background:var(--wait); }
+
+  .ticket .row1{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .tid{ font-family:var(--mono); font-size:11px; color:var(--muted-2); letter-spacing:.01em; }
+  .tcat{ font-family:var(--disp); font-weight:600; font-size:14.5px; margin-top:2px; }
+  .treq{ font-size:12.5px; color:var(--muted); margin-top:1px; }
+
+  .badges{ display:flex; flex-direction:column; align-items:flex-end; gap:5px; }
+  .badge{
+    font-size:10px; font-weight:700; padding:4px 8px; border-radius:6px; letter-spacing:.02em;
+    white-space:nowrap; font-family:var(--mono); text-transform:uppercase;
+  }
+  .b-gap{ background:var(--urgent-soft); color:var(--urgent); }
+  .b-binhthuong{ background:var(--normal-soft); color:var(--normal); }
+  .b-cho{ background:var(--wait-soft); color:var(--wait); }
+
+  .status-pill{ display:flex; align-items:center; gap:5px; font-size:11px; font-weight:600; color:var(--muted); }
+  .status-pill i{ width:6px; height:6px; border-radius:50%; display:inline-block; }
+  .st-moi i{ background:#3452FF; }
+  .st-dangxuly i{ background:#F0A93A; }
+  .st-dadong i{ background:#8B93A1; }
+
+  .ticket .desc{ font-size:13.5px; margin:10px 0 6px; color:#2A3140; line-height:1.55; }
+  .ticket .meta{ font-size:11.5px; color:var(--muted-2); font-family:var(--mono); }
+  .ticket .actions{ display:flex; gap:7px; margin-top:12px; flex-wrap:wrap; }
+  .ticket .actions button{
+    font-size:12px; padding:8px 12px; border-radius:8px; border:1px solid var(--line);
+    background:#FBFBFC; cursor:pointer; font-weight:600; color:var(--ink); font-family:var(--sans);
+  }
+  .ticket .actions button.mail{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .ticket .actions button.close{ background:var(--ink); color:#fff; border-color:var(--ink); }
+
+  .ticket .eval{
+    margin-top:12px; padding:10px 12px; border-radius:9px; font-size:12.5px;
+  }
+  .eval.ev-hailong{ background:var(--wait-soft); color:#0B6B49; }
+  .eval.ev-khonghailong{ background:var(--urgent-soft); color:#B33C1F; }
+  .eval.ev-khac{ background:var(--normal-soft); color:#9C6E08; }
+  .eval b{ font-weight:700; }
+
+  .empty{ text-align:center; color:var(--muted); font-size:13.5px; padding:44px 20px; }
+  .empty .big{ font-family:var(--disp); font-size:15px; color:var(--ink); margin-bottom:5px; font-weight:600; }
+
+  /* ===== MODAL ===== */
+  .modal-bg{
+    position:fixed; inset:0; background:rgba(11,17,28,.6); backdrop-filter:blur(2px); display:none;
+    align-items:flex-end; justify-content:center; z-index:20;
+  }
+  .modal-bg.show{ display:flex; }
+  .modal{
+    background:#fff; width:100%; max-width:760px; border-radius:18px 18px 0 0;
+    padding:22px 18px 26px; max-height:88vh; overflow-y:auto;
+  }
+  .modal-handle{ width:38px; height:4px; background:var(--line); border-radius:3px; margin:0 auto 14px; }
+  .modal h3{ margin:0 0 16px; font-family:var(--disp); font-size:17px; font-weight:600; display:flex; justify-content:space-between; align-items:center; }
+  .close-x{ background:var(--paper); border:none; width:28px; height:28px; border-radius:50%; font-size:15px; color:var(--muted); cursor:pointer; }
+
+  .stars{ display:flex; gap:7px; }
+  .stars button{
+    flex:1; padding:12px 4px; border-radius:9px; border:1.5px solid var(--line); background:#FBFBFC;
+    font-size:12.5px; font-weight:600; cursor:pointer; color:var(--muted); font-family:var(--sans);
+  }
+  .stars button.sel[data-e="hailong"]{ background:var(--wait-soft); color:var(--wait); border-color:var(--wait); }
+  .stars button.sel[data-e="khonghailong"]{ background:var(--urgent-soft); color:var(--urgent); border-color:var(--urgent); }
+  .stars button.sel[data-e="khac"]{ background:var(--normal-soft); color:var(--normal); border-color:var(--normal); }
+
+  .toolbar{ display:flex; gap:8px; margin-bottom:14px; }
+  .toolbar button{ flex:1; }
+
+  .loading{ text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+
+  /* ===== TOAST ===== */
+  .toast-wrap{ position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:50;
+    display:flex; flex-direction:column; gap:8px; align-items:center; width:100%; padding:0 16px; pointer-events:none;
+  }
+  .toast{
+    background:var(--ink); color:#fff; font-size:13px; font-weight:500; padding:11px 16px;
+    border-radius:10px; box-shadow:0 8px 24px rgba(11,17,28,.28); max-width:420px;
+    display:flex; align-items:center; gap:9px; opacity:0; transform:translateY(-8px);
+    animation:toastIn .25s ease forwards, toastOut .25s ease 2.6s forwards;
+  }
+  .toast.ok{ background:#0F8A5F; }
+  .toast.err{ background:var(--urgent); }
+  @keyframes toastIn{ to{ opacity:1; transform:translateY(0); } }
+  @keyframes toastOut{ to{ opacity:0; transform:translateY(-8px); } }
+
+  /* ===== FILTER / SEARCH ===== */
+  .filter-bar{ margin-bottom:12px; }
+  .search-input{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:9px;
+    background:var(--card); font-size:13.5px; margin-bottom:9px; font-family:var(--sans);
+  }
+  .search-input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .chips{ display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; }
+  .chip{
+    flex:0 0 auto; padding:6.5px 12px; border-radius:20px; border:1px solid var(--line);
+    background:var(--card); font-size:12px; font-weight:600; color:var(--muted); cursor:pointer;
+    white-space:nowrap; font-family:var(--sans); display:flex; align-items:center; gap:5px;
+  }
+  .chip.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .chip .cnt{ font-family:var(--mono); font-size:10.5px; opacity:.75; }
+
+  /* ===== SLA / OVERDUE ===== */
+  .sla{
+    font-size:9.5px; font-weight:700; padding:3px 7px; border-radius:6px; letter-spacing:.03em;
+    font-family:var(--mono); text-transform:uppercase; background:var(--urgent); color:#fff;
+    animation:slaPulse 1.6s infinite; margin-top:5px; display:inline-block;
+  }
+  @keyframes slaPulse{ 0%,100%{opacity:1;} 50%{opacity:.55;} }
+
+  /* ===== EDIT/DELETE ROW ===== */
+  .ticket .actions button.edit{ background:var(--accent-soft); color:var(--accent-ink); border-color:var(--accent-soft); }
+  .ticket .actions button.del{ background:var(--urgent-soft); color:var(--urgent); border-color:var(--urgent-soft); }
+
+  /* ===== FOOTER ===== */
+  footer{
+    max-width:760px; margin:26px auto 0; padding:16px 16px 6px; text-align:center;
+    border-top:1px solid var(--line); font-size:11px; color:var(--muted-2); font-family:var(--mono);
+  }
+  footer .fname{ color:var(--muted); font-weight:600; }
+
+  /* ===== STORAGE WARNING BANNER ===== */
+  .storage-banner{
+    display:none; background:#FCEFD6; border:1px solid #F0CB7B; color:#7A5203;
+    border-radius:11px; padding:12px 14px; margin-bottom:14px; font-size:12.5px; line-height:1.55;
+  }
+  .storage-banner.show{ display:block; }
+  .storage-banner b{ display:block; margin-bottom:3px; font-family:var(--disp); font-size:13px; }
+  .storage-banner button{
+    margin-top:8px; padding:7px 12px; border-radius:7px; border:1px solid #F0CB7B; background:#fff;
+    font-size:12px; font-weight:600; color:#7A5203; cursor:pointer;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hd-top">
+    <div class="brand">
+      <div class="brand-mark">IT</div>
+      <div class="brand-text">
+        <div class="eyebrow">Nội bộ · Vận hành</div>
+        <h1>Ticket Console</h1>
+      </div>
+    </div>
+    <div class="live-dot"><i></i>ĐANG HOẠT ĐỘNG</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="n" id="s-total">0</div><div class="l">Tổng ticket</div></div>
+    <div class="stat urgent"><div class="n" id="s-urgent">0</div><div class="l">Cần gấp</div></div>
+    <div class="stat progress"><div class="n" id="s-progress">0</div><div class="l">Đang xử lý</div></div>
+    <div class="stat closed"><div class="n" id="s-closed">0</div><div class="l">Đã đóng</div></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="storage-banner" id="storage-banner">
+    <b>⚠ Dữ liệu chỉ lưu tạm trong phiên này</b>
+    Trang đang chạy ngoài khung xem của Claude nên không lưu được lâu dài. Hãy mở file này qua thẻ file trong cuộc trò chuyện Claude (đừng mở file tải về bằng trình duyệt ngoài) để dữ liệu được lưu lại giữa các lần mở.
+    <button id="btn-retry-storage">↻ Thử kiểm tra lại</button>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-tab="new">+ Tạo ticket</div>
+    <div class="tab" data-tab="list">Danh sách</div>
+  </div>
+
+  <!-- TẠO TICKET -->
+  <div id="tab-new">
+    <div class="card">
+      <h2>Thông tin yêu cầu</h2>
+      <label>Người yêu cầu</label>
+      <input type="text" id="f-requester" placeholder="Tên của bạn">
+
+      <label>Phân loại</label>
+      <select id="f-category">
+        <option value="Phần cứng">Phần cứng</option>
+        <option value="Phần mềm">Phần mềm</option>
+        <option value="Ứng dụng khác">Ứng dụng khác</option>
+      </select>
+
+      <label>Mô tả vấn đề</label>
+      <textarea id="f-desc" placeholder="Mô tả chi tiết lỗi / yêu cầu..."></textarea>
+
+      <label>Mức độ ưu tiên</label>
+      <div class="seg" id="f-priority">
+        <button data-p="gap">Cần gấp</button>
+        <button data-p="binhthuong" class="sel">Bình thường</button>
+        <button data-p="cho">Chờ được lâu</button>
+      </div>
+
+      <label>Email IT nhận ticket</label>
+      <input type="text" id="f-email" placeholder="it-support@congty.com">
+
+      <button class="primary" id="btn-create">Tạo ticket →</button>
+    </div>
+  </div>
+
+  <!-- DANH SÁCH -->
+  <div id="tab-list" style="display:none;">
+    <div class="toolbar">
+      <button class="ghost" id="btn-export">⬇ Xuất Excel</button>
+      <button class="ghost" id="btn-refresh">↻ Làm mới</button>
+    </div>
+    <div class="filter-bar">
+      <input type="text" class="search-input" id="f-search" placeholder="Tìm theo mô tả, người yêu cầu...">
+      <div class="chips" id="f-chips">
+        <div class="chip active" data-f="all">Tất cả <span class="cnt" id="cnt-all">0</span></div>
+        <div class="chip" data-f="moi">Mới <span class="cnt" id="cnt-moi">0</span></div>
+        <div class="chip" data-f="dangxuly">Đang xử lý <span class="cnt" id="cnt-dangxuly">0</span></div>
+        <div class="chip" data-f="dadong">Đã đóng <span class="cnt" id="cnt-dadong">0</span></div>
+      </div>
+    </div>
+    <div id="list-body"><div class="loading">Đang tải...</div></div>
+  </div>
+</div>
+
+<footer>
+  © 2026 <span class="fname">Quang NP</span> · IT Ticket Console — nội bộ
+</footer>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<!-- MODAL: ĐÓNG TICKET -->
+<div class="modal-bg" id="modal-close">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>Đóng ticket <button class="close-x" data-close="modal-close">✕</button></h3>
+    <label>Người xử lý (IT)</label>
+    <input type="text" id="c-assignee" placeholder="Tên nhân viên IT">
+    <label>Bằng chứng / ghi chú xử lý</label>
+    <textarea id="c-evidence" placeholder="Mô tả cách xử lý, link ảnh chụp lỗi, log..."></textarea>
+
+    <label style="margin-top:16px;">Đánh giá dịch vụ (người dùng)</label>
+    <div class="stars" id="c-eval">
+      <button data-e="hailong">Hài lòng</button>
+      <button data-e="khonghailong">Không hài lòng</button>
+      <button data-e="khac">Ý kiến khác</button>
+    </div>
+    <label>Ghi chú đánh giá (tuỳ chọn)</label>
+    <textarea id="c-evalnote" placeholder="Ý kiến thêm của người dùng..."></textarea>
+
+    <button class="primary" id="btn-confirm-close">Xác nhận đóng ticket</button>
+  </div>
+</div>
+
+<!-- MODAL: SỬA TICKET -->
+<div class="modal-bg" id="modal-edit">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>Sửa ticket <button class="close-x" data-close="modal-edit">✕</button></h3>
+    <label>Người yêu cầu</label>
+    <input type="text" id="e-requester">
+    <label>Phân loại</label>
+    <select id="e-category">
+      <option value="Phần cứng">Phần cứng</option>
+      <option value="Phần mềm">Phần mềm</option>
+      <option value="Ứng dụng khác">Ứng dụng khác</option>
+    </select>
+    <label>Mô tả vấn đề</label>
+    <textarea id="e-desc"></textarea>
+    <label>Mức độ ưu tiên</label>
+    <div class="seg" id="e-priority">
+      <button data-p="gap">Cần gấp</button>
+      <button data-p="binhthuong">Bình thường</button>
+      <button data-p="cho">Chờ được lâu</button>
+    </div>
+    <label>Email IT nhận ticket</label>
+    <input type="text" id="e-email">
+    <button class="primary" id="btn-confirm-edit">Lưu thay đổi</button>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'it_tickets_v1';
+let tickets = [];
+let currentFilter = 'all';
+let currentSearch = '';
+let storageAvailable = true;
+let saveErrorShown = false;
+
+function showStorageBanner(show){
+  document.getElementById('storage-banner').classList.toggle('show', !!show);
+}
+
+async function checkStorageAvailability(){
+  try{
+    const testKey = '__ping__';
+    localStorage.setItem(testKey, '1');
+    localStorage.removeItem(testKey);
+    storageAvailable = true;
+    showStorageBanner(false);
+    return true;
+  }catch(e){
+    storageAvailable = false;
+    showStorageBanner(true);
+    return false;
+  }
+}
+
+document.getElementById('btn-retry-storage').addEventListener('click', async ()=>{
+  const ok = await checkStorageAvailability();
+  if(ok){
+    showToast('Đã kết nối lưu trữ, đang đồng bộ lại dữ liệu...', 'ok');
+    await loadTickets();
+    renderList();
+    updateStats();
+  } else {
+    showToast('Vẫn chưa kết nối được lưu trữ.', 'err');
+  }
+});
+
+const PRI_WEIGHT = {gap:0, binhthuong:1, cho:2};
+
+function showToast(msg, type){
+  const wrap = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' '+type : '');
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.remove(); }, 3000);
+}
+
+function timeAgo(iso){
+  if(!iso) return '';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diffMs/60000);
+  if(min < 1) return 'vừa xong';
+  if(min < 60) return `${min} phút trước`;
+  const hr = Math.floor(min/60);
+  if(hr < 24) return `${hr} giờ trước`;
+  const day = Math.floor(hr/24);
+  return `${day} ngày trước`;
+}
+
+const PRI_LABEL = {gap:'Cần gấp', binhthuong:'Bình thường', cho:'Chờ được lâu'};
+const STATUS_LABEL = {moi:'Mới', dangxuly:'Đang xử lý', dadong:'Đã đóng'};
+const EVAL_LABEL = {hailong:'Hài lòng', khonghailong:'Không hài lòng', khac:'Ý kiến khác'};
+
+function genId(){
+  const d = new Date();
+  const y = d.getFullYear().toString().slice(-2);
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  const rand = Math.floor(Math.random()*9000+1000);
+  const id = `TK${y}${m}${day}-${rand}`;
+  return tickets.some(t=>t.id===id) ? genId() : id;
+}
+
+async function loadTickets(){
+  if(!storageAvailable){ return; }
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    tickets = raw ? JSON.parse(raw) : [];
+  }catch(e){
+    tickets = [];
+  }
+}
+
+async function saveTickets(){
+  if(!storageAvailable){
+    if(!saveErrorShown){
+      showToast('Đang ở chế độ tạm: dữ liệu không lưu lại lâu dài.', 'err');
+      saveErrorShown = true;
+    }
+    return;
+  }
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
+  }catch(e){
+    console.error('Lỗi lưu dữ liệu', e);
+    storageAvailable = false;
+    showStorageBanner(true);
+    if(!saveErrorShown){
+      showToast('Không lưu được dữ liệu, chuyển sang chế độ tạm.', 'err');
+      saveErrorShown = true;
+    }
+  }
+}
+
+// Tabs
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    const tab = t.dataset.tab;
+    document.getElementById('tab-new').style.display = tab==='new' ? 'block':'none';
+    document.getElementById('tab-list').style.display = tab==='list' ? 'block':'none';
+    if(tab==='list') renderList();
+  });
+});
+
+// Priority selector (create form)
+document.getElementById('f-priority').addEventListener('click', e=>{
+  if(e.target.tagName!=='BUTTON') return;
+  document.querySelectorAll('#f-priority button').forEach(b=>b.classList.remove('sel'));
+  e.target.classList.add('sel');
+});
+
+// Eval selector (modal)
+document.getElementById('c-eval').addEventListener('click', e=>{
+  if(e.target.tagName!=='BUTTON') return;
+  document.querySelectorAll('#c-eval button').forEach(b=>b.classList.remove('sel'));
+  e.target.classList.add('sel');
+});
+
+// Edit-priority selector (modal)
+document.getElementById('e-priority').addEventListener('click', e=>{
+  if(e.target.tagName!=='BUTTON') return;
+  document.querySelectorAll('#e-priority button').forEach(b=>b.classList.remove('sel'));
+  e.target.classList.add('sel');
+});
+
+// Create ticket
+document.getElementById('btn-create').addEventListener('click', async ()=>{
+  const requester = document.getElementById('f-requester').value.trim();
+  const category = document.getElementById('f-category').value;
+  const desc = document.getElementById('f-desc').value.trim();
+  const email = document.getElementById('f-email').value.trim();
+  const priBtn = document.querySelector('#f-priority button.sel');
+  const priority = priBtn ? priBtn.dataset.p : 'binhthuong';
+
+  if(!requester || !desc){
+    showToast('Vui lòng nhập Người yêu cầu và Mô tả vấn đề.', 'err');
+    return;
+  }
+
+  const ticket = {
+    id: genId(),
+    createdAt: new Date().toISOString(),
+    requester, category, desc, priority, email,
+    status: 'moi',
+    assignee:'', closedAt:'', evidence:'',
+    evalRating:'', evalNote:''
+  };
+  tickets.unshift(ticket);
+  await saveTickets();
+  updateStats();
+
+  document.getElementById('f-requester').value='';
+  document.getElementById('f-desc').value='';
+  document.getElementById('f-email').value='';
+  document.querySelectorAll('#f-priority button').forEach(b=>b.classList.remove('sel'));
+  document.querySelector('#f-priority button[data-p="binhthuong"]').classList.add('sel');
+
+  showToast(`Đã tạo ${ticket.id}`, 'ok');
+  currentFilter = 'all';
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active', c.dataset.f==='all'));
+  document.querySelector('.tab[data-tab="list"]').click();
+});
+
+function fmtDate(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleString('vi-VN', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+}
+
+function buildEmailParts(t){
+  const subject = `[Ticket ${t.id}] ${t.category} - ${PRI_LABEL[t.priority]}`;
+  const body =
+`Mã ticket: ${t.id}
+Người yêu cầu: ${t.requester}
+Ngày tạo: ${fmtDate(t.createdAt)}
+Phân loại: ${t.category}
+Mức độ ưu tiên: ${PRI_LABEL[t.priority]}
+
+Mô tả vấn đề:
+${t.desc}
+
+---
+Vui lòng phản hồi và cập nhật trạng thái xử lý.`;
+  return {subject, body};
+}
+
+function buildMailto(t){
+  const {subject, body} = buildEmailParts(t);
+  const to = t.email || '';
+  return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+async function copyEmailContent(id){
+  const t = tickets.find(x=>x.id===id);
+  if(!t) return;
+  const {subject, body} = buildEmailParts(t);
+  const text = `Đến: ${t.email || '(chưa có email)'}\nTiêu đề: ${subject}\n\n${body}`;
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast('Đã sao chép nội dung email', 'ok');
+  }catch(e){
+    showToast('Không thể sao chép, vui lòng thử lại', 'err');
+  }
+}
+
+let closingTicketId = null;
+
+function openCloseModal(id){
+  closingTicketId = id;
+  document.getElementById('c-assignee').value='';
+  document.getElementById('c-evidence').value='';
+  document.getElementById('c-evalnote').value='';
+  document.querySelectorAll('#c-eval button').forEach(b=>b.classList.remove('sel'));
+  document.getElementById('modal-close').classList.add('show');
+}
+
+document.querySelectorAll('[data-close]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.getElementById(b.dataset.close).classList.remove('show');
+  });
+});
+
+document.getElementById('btn-confirm-close').addEventListener('click', async ()=>{
+  const t = tickets.find(x=>x.id===closingTicketId);
+  if(!t) return;
+  const assignee = document.getElementById('c-assignee').value.trim();
+  const evidence = document.getElementById('c-evidence').value.trim();
+  const evalBtn = document.querySelector('#c-eval button.sel');
+  const evalNote = document.getElementById('c-evalnote').value.trim();
+
+  t.status = 'dadong';
+  t.assignee = assignee;
+  t.evidence = evidence;
+  t.closedAt = new Date().toISOString();
+  t.evalRating = evalBtn ? evalBtn.dataset.e : '';
+  t.evalNote = evalNote;
+
+  await saveTickets();
+  document.getElementById('modal-close').classList.remove('show');
+  renderList();
+  updateStats();
+});
+
+async function markInProgress(id){
+  const t = tickets.find(x=>x.id===id);
+  if(!t) return;
+  t.status = 'dangxuly';
+  await saveTickets();
+  renderList();
+  updateStats();
+}
+
+let editingTicketId = null;
+
+function openEditModal(id){
+  const t = tickets.find(x=>x.id===id);
+  if(!t) return;
+  editingTicketId = id;
+  document.getElementById('e-requester').value = t.requester;
+  document.getElementById('e-category').value = t.category;
+  document.getElementById('e-desc').value = t.desc;
+  document.getElementById('e-email').value = t.email || '';
+  document.querySelectorAll('#e-priority button').forEach(b=>b.classList.toggle('sel', b.dataset.p===t.priority));
+  document.getElementById('modal-edit').classList.add('show');
+}
+
+document.getElementById('btn-confirm-edit').addEventListener('click', async ()=>{
+  const t = tickets.find(x=>x.id===editingTicketId);
+  if(!t) return;
+  const requester = document.getElementById('e-requester').value.trim();
+  const desc = document.getElementById('e-desc').value.trim();
+  if(!requester || !desc){
+    showToast('Vui lòng nhập Người yêu cầu và Mô tả vấn đề.', 'err');
+    return;
+  }
+  t.requester = requester;
+  t.category = document.getElementById('e-category').value;
+  t.desc = desc;
+  t.email = document.getElementById('e-email').value.trim();
+  const priBtn = document.querySelector('#e-priority button.sel');
+  t.priority = priBtn ? priBtn.dataset.p : t.priority;
+
+  await saveTickets();
+  document.getElementById('modal-edit').classList.remove('show');
+  renderList();
+  updateStats();
+  showToast(`Đã cập nhật ${t.id}`, 'ok');
+});
+
+async function deleteTicket(id){
+  const t = tickets.find(x=>x.id===id);
+  if(!t) return;
+  if(!confirm(`Xoá vĩnh viễn ${t.id}? Hành động này không thể hoàn tác.`)) return;
+  tickets = tickets.filter(x=>x.id!==id);
+  await saveTickets();
+  renderList();
+  updateStats();
+  showToast(`Đã xoá ${id}`, 'ok');
+}
+
+function isOverdue(t){
+  if(t.status==='dadong' || t.priority!=='gap') return false;
+  const hrs = (Date.now() - new Date(t.createdAt).getTime()) / 3600000;
+  return hrs >= 4;
+}
+
+function updateStats(){
+  const total = tickets.length;
+  const urgent = tickets.filter(t=>t.priority==='gap' && t.status!=='dadong').length;
+  const progress = tickets.filter(t=>t.status==='dangxuly').length;
+  const closed = tickets.filter(t=>t.status==='dadong').length;
+  document.getElementById('s-total').textContent = total;
+  document.getElementById('s-urgent').textContent = urgent;
+  document.getElementById('s-progress').textContent = progress;
+  document.getElementById('s-closed').textContent = closed;
+
+  const moiCount = tickets.filter(t=>t.status==='moi').length;
+  document.getElementById('cnt-all').textContent = total;
+  document.getElementById('cnt-moi').textContent = moiCount;
+  document.getElementById('cnt-dangxuly').textContent = progress;
+  document.getElementById('cnt-dadong').textContent = closed;
+}
+
+document.getElementById('f-chips').addEventListener('click', e=>{
+  const chip = e.target.closest('.chip');
+  if(!chip) return;
+  currentFilter = chip.dataset.f;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  chip.classList.add('active');
+  renderList();
+});
+
+document.getElementById('f-search').addEventListener('input', e=>{
+  currentSearch = e.target.value.trim().toLowerCase();
+  renderList();
+});
+
+function getVisibleTickets(){
+  let list = tickets.slice();
+  if(currentFilter !== 'all'){
+    list = list.filter(t=>t.status===currentFilter);
+  }
+  if(currentSearch){
+    list = list.filter(t =>
+      t.desc.toLowerCase().includes(currentSearch) ||
+      t.requester.toLowerCase().includes(currentSearch) ||
+      t.category.toLowerCase().includes(currentSearch) ||
+      t.id.toLowerCase().includes(currentSearch)
+    );
+  }
+  // Mở trước, đóng sau; trong nhóm mở thì Cần gấp lên đầu; cùng mức thì mới nhất trước
+  list.sort((a,b)=>{
+    const aOpen = a.status !== 'dadong';
+    const bOpen = b.status !== 'dadong';
+    if(aOpen !== bOpen) return aOpen ? -1 : 1;
+    if(aOpen && a.priority !== b.priority) return PRI_WEIGHT[a.priority] - PRI_WEIGHT[b.priority];
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
+  return list;
+}
+
+function renderList(){
+  const body = document.getElementById('list-body');
+  if(tickets.length===0){
+    body.innerHTML = '<div class="empty"><div class="big">Chưa có ticket nào</div>Tạo ticket ở tab bên trên để bắt đầu theo dõi.</div>';
+    return;
+  }
+  const visible = getVisibleTickets();
+  if(visible.length===0){
+    body.innerHTML = '<div class="empty"><div class="big">Không tìm thấy ticket phù hợp</div>Thử đổi bộ lọc hoặc từ khoá tìm kiếm.</div>';
+    return;
+  }
+  body.innerHTML = visible.map(t=>{
+    const evalHtml = t.status==='dadong' && t.evalRating
+      ? `<div class="eval ev-${t.evalRating}"><b>Đánh giá:</b> ${EVAL_LABEL[t.evalRating]||''}${t.evalNote ? ' — '+escapeHtml(t.evalNote) : ''}</div>`
+      : '';
+    const closedInfo = t.status==='dadong'
+      ? ` · Đóng: ${fmtDate(t.closedAt)}${t.assignee ? ' · Xử lý: '+escapeHtml(t.assignee):''}`
+      : '';
+    const evidenceHtml = t.evidence
+      ? `<div class="meta" style="margin-top:5px;">📎 ${escapeHtml(t.evidence)}</div>` : '';
+
+    let actions = '';
+    if(t.status!=='dadong'){
+      actions += `<button class="mail" onclick="window.open('${buildMailto(t)}','_blank')">✉ Gửi IT</button>`;
+      actions += `<button onclick="copyEmailContent('${t.id}')">📋 Sao chép</button>`;
+      if(t.status==='moi'){
+        actions += `<button onclick="markInProgress('${t.id}')">Đang xử lý</button>`;
+      }
+      actions += `<button class="close" onclick="openCloseModal('${t.id}')">Đóng ticket</button>`;
+      actions += `<button class="edit" onclick="openEditModal('${t.id}')">✎ Sửa</button>`;
+      actions += `<button class="del" onclick="deleteTicket('${t.id}')">🗑 Xoá</button>`;
+    } else {
+      actions += `<button class="mail" onclick="window.open('${buildMailto(t)}','_blank')">✉ Gửi lại</button>`;
+      actions += `<button onclick="copyEmailContent('${t.id}')">📋 Sao chép</button>`;
+      actions += `<button class="del" onclick="deleteTicket('${t.id}')">🗑 Xoá</button>`;
+    }
+
+    const overdueHtml = isOverdue(t) ? `<div><span class="sla">⚠ Quá hạn xử lý</span></div>` : '';
+
+    return `
+    <div class="ticket p-${t.priority}">
+      <div class="row1">
+        <div>
+          <span class="tid">${t.id}</span>
+          <div class="tcat">${escapeHtml(t.category)}</div>
+          <div class="treq">${escapeHtml(t.requester)}</div>
+        </div>
+        <div class="badges">
+          <span class="badge b-${t.priority}">${PRI_LABEL[t.priority]}</span>
+          <span class="status-pill st-${t.status}"><i></i>${STATUS_LABEL[t.status]}</span>
+        </div>
+      </div>
+      ${overdueHtml}
+      <div class="desc">${escapeHtml(t.desc)}</div>
+      <div class="meta">Tạo: ${fmtDate(t.createdAt)} · ${timeAgo(t.createdAt)}${closedInfo}</div>
+      ${evidenceHtml}
+      ${evalHtml}
+      <div class="actions">${actions}</div>
+    </div>`;
+  }).join('');
+}
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+document.getElementById('btn-refresh').addEventListener('click', ()=>{renderList(); updateStats();});
+
+document.getElementById('btn-export').addEventListener('click', ()=>{
+  if(tickets.length===0){ showToast('Chưa có dữ liệu để xuất.', 'err'); return; }
+  const exportList = getVisibleTickets();
+  if(exportList.length===0){ showToast('Không có ticket phù hợp bộ lọc để xuất.', 'err'); return; }
+  const rows = exportList.map(t=>({
+    'Mã ticket': t.id,
+    'Ngày tạo': fmtDate(t.createdAt),
+    'Người yêu cầu': t.requester,
+    'Phân loại': t.category,
+    'Mô tả': t.desc,
+    'Mức độ ưu tiên': PRI_LABEL[t.priority] || t.priority,
+    'Trạng thái': STATUS_LABEL[t.status] || t.status,
+    'Người xử lý': t.assignee,
+    'Ngày đóng': fmtDate(t.closedAt),
+    'Bằng chứng / Ghi chú xử lý': t.evidence,
+    'Đánh giá dịch vụ': EVAL_LABEL[t.evalRating] || '',
+    'Ghi chú đánh giá': t.evalNote
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [
+    {wch:12},{wch:16},{wch:16},{wch:14},{wch:35},
+    {wch:13},{wch:12},{wch:14},{wch:16},{wch:35},{wch:14},{wch:30}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Tickets');
+  XLSX.writeFile(wb, `IT-Tickets-${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast(`Đã xuất ${exportList.length} ticket ra Excel`, 'ok');
+});
+
+// Init
+(async ()=>{
+  await checkStorageAvailability();
+  await loadTickets();
+  renderList();
+  updateStats();
+})();
+</script>
+
+</body>
+</html>
